@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Briefing Studio</title>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<style>
+/* ── Reset & Base ── */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#ffffff;--bg2:#f7f8fa;--bg3:#f0f1f4;
+  --text:#1a1a2e;--text2:#4a5568;--text3:#9ca3af;
+  --border:#e5e7eb;--border2:#d1d5db;
+  --purple:#5B4FCF;--purple-light:#EAE8FA;
+  --teal:#1D9E75;--teal-light:#E2F5EE;
+  --amber:#BA7517;--amber-light:#FDF3E0;
+  --red:#D85A30;--red-light:#FDEEE8;
+  --blue:#2F6FBE;--blue-light:#E5EFF9;
+  --green:#15803d;--green-light:#dcfce7;
+  --radius:8px;--radius-lg:12px;
+  --shadow:0 1px 3px rgba(0,0,0,.08);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:var(--text);background:var(--bg2);font-size:14px;line-height:1.6}
+
+/* ── Layout ── */
+.app{display:flex;flex-direction:column;min-height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:52px;background:var(--bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.topbar-logo{font-size:15px;font-weight:600;color:var(--purple);display:flex;align-items:center;gap:8px}
+.topbar-logo svg{width:20px;height:20px}
+.topbar-nav{display:flex;gap:4px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.content{flex:1;padding:28px 24px;max-width:900px;margin:0 auto;width:100%}
+
+/* ── Tabs ── */
+.tab{padding:6px 14px;border-radius:var(--radius);border:none;background:transparent;cursor:pointer;font-size:13px;color:var(--text2);font-family:inherit;transition:background .12s}
+.tab:hover{background:var(--bg2)}
+.tab.active{background:var(--bg2);color:var(--text);font-weight:500}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg);cursor:pointer;font-size:13px;font-family:inherit;color:var(--text);transition:all .12s;white-space:nowrap}
+.btn:hover{background:var(--bg2)}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--text);color:var(--bg);border-color:var(--text)}
+.btn.primary:hover{opacity:.86}
+.btn.danger{color:var(--red);border-color:#fca5a5}
+.btn.danger:hover{background:var(--red-light)}
+.btn.ghost{border:none;padding:6px 8px;background:transparent}
+.btn.ghost:hover{background:var(--bg2)}
+.btn.sm{padding:4px 10px;font-size:12px}
+.btn.icon{padding:6px;border-radius:var(--radius)}
+
+/* ── Forms ── */
+input,select,textarea{width:100%;padding:8px 12px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;font-size:14px;transition:border .12s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--purple)}
+textarea{resize:vertical;min-height:80px}
+label.lbl{font-size:12px;color:var(--text2);margin-bottom:5px;display:block;font-weight:500}
+
+/* ── Cards ── */
+.card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:12px}
+.card.clickable{cursor:pointer;transition:border-color .12s}
+.card.clickable:hover{border-color:var(--border2)}
+.card.selected{border-color:var(--purple)}
+
+/* ── Chips ── */
+.chip-group{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+.chip{padding:5px 13px;border-radius:20px;border:1px solid var(--border2);background:transparent;cursor:pointer;font-size:13px;color:var(--text2);font-family:inherit;transition:all .12s}
+.chip:hover{border-color:var(--border2);color:var(--text)}
+.chip.selected{background:var(--text);color:var(--bg);border-color:var(--text)}
+.chip.muted{opacity:.5}
+
+/* ── Badges ── */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.badge.success{background:var(--green-light);color:var(--green)}
+.badge.warning{background:var(--amber-light);color:var(--amber)}
+.badge.danger{background:var(--red-light);color:var(--red)}
+.badge.info{background:var(--blue-light);color:var(--blue)}
+.badge.neutral{background:var(--bg2);color:var(--text2)}
+.badge.purple{background:var(--purple-light);color:var(--purple)}
+
+/* ── Misc ── */
+.section-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:20px 0 10px}
+.divider{height:1px;background:var(--border);margin:20px 0}
+.row{display:flex;gap:12px}
+.col{flex:1}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+
+/* ── Metric cards ── */
+.metric{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px}
+.metric-label{font-size:11px;color:var(--text3);margin-bottom:4px}
+.metric-value{font-size:22px;font-weight:600;color:var(--text)}
+.metric-sub{font-size:11px;color:var(--text3);margin-top:3px}
+
+/* ── Progress ── */
+.progress{height:3px;background:var(--bg3);border-radius:2px;margin-bottom:24px}
+.progress-fill{height:100%;background:var(--purple);border-radius:2px;transition:width .3s}
+
+/* ── Step nav ── */
+.step-pills{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.step-pill{font-size:12px;padding:4px 10px;border-radius:20px;color:var(--text3)}
+.step-pill.active{background:var(--text);color:var(--bg)}
+
+/* ── Nav footer ── */
+.nav-footer{display:flex;justify-content:space-between;margin-top:28px;padding-top:16px;border-top:1px solid var(--border)}
+
+/* ── Project list ── */
+.project-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:8px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:border-color .12s}
+.project-card:hover{border-color:var(--border2)}
+.proj-icon{width:38px;height:38px;border-radius:var(--radius);background:var(--purple-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;color:var(--purple)}
+.proj-meta{flex:1;min-width:0}
+.proj-name{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-info{font-size:12px;color:var(--text3);margin-top:2px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.proj-actions{display:flex;gap:6px;flex-shrink:0}
+
+/* ── Empty state ── */
+.empty{text-align:center;padding:72px 20px}
+.empty-icon{font-size:40px;margin-bottom:14px}
+.empty-title{font-size:16px;font-weight:500;margin-bottom:6px}
+.empty-sub{font-size:13px;color:var(--text3);margin-bottom:20px}
+
+/* ── Proposal ── */
+.proposal-heading{font-size:16px;font-weight:600;margin:24px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.proposal-text{font-size:14px;color:var(--text2);line-height:1.8}
+.proposal-list{list-style:none;padding:0}
+.proposal-list li{padding:5px 0;font-size:14px;color:var(--text2);display:flex;gap:8px}
+.proposal-list li::before{content:"→";color:var(--text3);flex-shrink:0}
+.tag-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{padding:3px 10px;border-radius:20px;font-size:12px;background:var(--bg2);color:var(--text2)}
+
+/* ── Price table ── */
+.price-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.price-table th{text-align:left;padding:8px 12px;background:var(--bg2);font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
+.price-table td{padding:8px 12px;border-bottom:1px solid var(--border)}
+.price-table tr:last-child td{border:none}
+.price-table tr.total td{font-weight:600;font-size:15px;background:var(--purple-light);color:var(--purple)}
+.price-table tr.base td{color:var(--text2)}
+
+/* ── Risk blocks ── */
+.risk-block{border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:12px}
+.risk-block.high{background:var(--red-light);border:1px solid #fca5a5}
+.risk-block.med{background:var(--amber-light);border:1px solid #fcd34d}
+.risk-block-title{font-size:13px;font-weight:600;margin-bottom:8px}
+.risk-block.high .risk-block-title{color:var(--red)}
+.risk-block.med .risk-block-title{color:var(--amber)}
+.risk-item{font-size:13px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.06)}
+.risk-item:last-child{border:none}
+.risk-block.high .risk-item{color:var(--red)}
+.risk-block.med .risk-item{color:var(--amber)}
+
+/* ── Admin ── */
+.admin-item{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)}
+.admin-item:last-child{border:none}
+.admin-label{flex:1;font-size:13px}
+.admin-inputs{display:flex;gap:6px;align-items:center}
+.admin-inputs input{width:64px;text-align:center;padding:5px 8px;font-size:12px}
+.admin-inputs select{width:100px;font-size:12px;padding:5px 8px}
+
+/* ── Modal ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal{background:var(--bg);border-radius:var(--radius-lg);border:1px solid var(--border);padding:24px;width:100%;max-width:460px}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:16px}
+.export-opt{display:flex;align-items:center;gap:14px;padding:14px;border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;margin-bottom:8px;transition:all .12s}
+.export-opt:hover{border-color:var(--border2);background:var(--bg2)}
+.export-icon{width:38px;height:38px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.export-name{font-size:14px;font-weight:500}
+.export-desc{font-size:12px;color:var(--text3);margin-top:2px}
+
+/* ── Auth ── */
+.auth-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:var(--bg2)}
+.auth-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:40px;text-align:center;max-width:380px;width:100%}
+.auth-logo{font-size:28px;font-weight:700;color:var(--purple);margin-bottom:8px}
+.auth-sub{font-size:14px;color:var(--text3);margin-bottom:32px}
+.google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:10px 16px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg);cursor:pointer;font-size:14px;font-weight:500;font-family:inherit;transition:background .12s}
+.google-btn:hover{background:var(--bg2)}
+.google-btn img{width:18px;height:18px}
+
+/* ── Loading ── */
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:14px;color:var(--text3)}
+.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ── User avatar ── */
+.avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--border)}
+.avatar-initial{width:32px;height:32px;border-radius:50%;background:var(--purple-light);color:var(--purple);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SCREENS                                                           -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+
+<div id="screen-loading" class="loading">
+  <div class="spinner"></div>
+  <span>Carregando…</span>
+</div>
+
+<div id="screen-auth" class="auth-screen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">✦ Briefing Studio</div>
+    <div class="auth-sub">Planejamento e precificação de projetos de product design</div>
+    <button class="google-btn" onclick="signInGoogle()">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="">
+      Entrar com Google
+    </button>
+    <p style="font-size:11px;color:var(--text3);margin-top:16px">Seus projetos ficam salvos na sua conta.</p>
+  </div>
+</div>
+
+<div id="screen-app" class="app" style="display:none">
+  <div class="topbar">
+    <div class="topbar-logo">
+      ✦ Briefing Studio
+    </div>
+    <nav class="topbar-nav" id="tab-nav">
+      <button class="tab active" data-view="dashboard" onclick="showView('dashboard')">Projetos</button>
+      <button class="tab" data-view="wizard" onclick="startWizard()">+ Novo</button>
+      <button class="tab" data-view="admin" onclick="showView('admin')">⚙ Config</button>
+    </nav>
+    <div class="topbar-right">
+      <span id="user-name" style="font-size:12px;color:var(--text3)"></span>
+      <div id="user-avatar"></div>
+      <button class="btn sm ghost" onclick="signOut()" title="Sair">↩</button>
+    </div>
+  </div>
+  <div class="content" id="main-content"></div>
+</div>
+
+<div id="modal-root"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- FIREBASE CONFIG — substitua pelos seus valores                    -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔧 COLE AQUI as credenciais do seu projeto Firebase
+//    Firebase Console → Project Settings → Your apps → SDK setup
+// ─────────────────────────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey:            "AIzaSyAePGSnGgvJo98OpK7ilH5UNOfqOnnBozY",
+  authDomain:        "briefing-studio-maylana.firebaseapp.com",
+  projectId:         "briefing-studio-maylana",
+  storageBucket:     "briefing-studio-maylana.firebasestorage.app",
+  messagingSenderId: "424086531408",
+  appId:             "1:424086531408:web:4e458bd2f0983e8ced9055",
+  measurementId:     "G-J6GMFLSTFD"
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+let currentUser = null;
+let projects    = [];
+let view        = 'dashboard';
+let wizardStep  = 1;
+let curProj     = null;
+let editId      = null;
+let unsubProjects = null;
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+auth.onAuthStateChanged(user => {
+  document.getElementById('screen-loading').style.display = 'none';
+  if (user) {
+    currentUser = user;
+    document.getElementById('screen-auth').style.display = 'none';
+    document.getElementById('screen-app').style.display  = 'flex';
+    document.getElementById('user-name').textContent = user.displayName?.split(' ')[0] || '';
+    const av = document.getElementById('user-avatar');
+    if (user.photoURL) {
+      av.innerHTML = `<img class="avatar" src="${user.photoURL}" alt="">`;
+    } else {
+      av.innerHTML = `<div class="avatar-initial">${(user.displayName||user.email||'U')[0].toUpperCase()}</div>`;
+    }
+    subscribeProjects();
+    showView('dashboard');
+  } else {
+    currentUser = null;
+    if (unsubProjects) { unsubProjects(); unsubProjects = null; }
+    document.getElementById('screen-auth').style.display = 'flex';
+    document.getElementById('screen-app').style.display  = 'none';
+  }
+});
+
+function signInGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e => alert('Erro no login: ' + e.message));
+}
+
+function signOut() {
+  if (confirm('Sair do Briefing Studio?')) auth.signOut();
+}
+
+// ── Firestore ─────────────────────────────────────────────────────────────────
+function userRef() {
+  return db.collection('users').doc(currentUser.uid);
+}
+
+function projectsRef() {
+  return userRef().collection('projects');
+}
+
+function subscribeProjects() {
+  if (unsubProjects) unsubProjects();
+  unsubProjects = projectsRef()
+    .orderBy('updatedAt', 'desc')
+    .onSnapshot(snap => {
+      projects = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (view === 'dashboard') render();
+    }, err => console.error('Firestore error:', err));
+}
+
+async function saveProject(proj) {
+  const now = firebase.firestore.FieldValue.serverTimestamp();
+  if (proj.id) {
+    await projectsRef().doc(proj.id).set({ ...proj, updatedAt: now });
+    return proj.id;
+  } else {
+    const ref = await projectsRef().add({ ...proj, createdAt: now, updatedAt: now });
+    return ref.id;
+  }
+}
+
+async function deleteProject(id) {
+  await projectsRef().doc(id).delete();
+}
+
+// ── Data ─────────────────────────────────────────────────────────────────────
+const DATA = {
+  phases: [
+    { id:'research', label:'Pesquisa e análise', items: [
+      {id:'r1',label:'Entrevistas com usuários',desc:'Identificar pontos de dor e desejos',timeImpact:20,priceImpact:18,risk:'medium',obs:'Recrutamento tem custo direto. Definir quem recruta e quem paga.'},
+      {id:'r2',label:'Análise de dados existentes',desc:'Analytics, heatmaps e gravações',timeImpact:10,priceImpact:10,risk:'low',obs:'Pode substituir parte da pesquisa primária.'},
+      {id:'r3',label:'Benchmark competitivo',desc:'Análise de concorrentes e referências',timeImpact:8,priceImpact:7,risk:'low',obs:'Agrega valor percebido e justifica decisões de design.'},
+      {id:'r4',label:'Análise heurística',desc:'Avaliação de usabilidade do produto atual',timeImpact:12,priceImpact:10,risk:'low',obs:'Fundamental para projetos de redesign ou legado.'},
+      {id:'r5',label:'Análise de funcionalidades',desc:'Mapeamento do produto existente',timeImpact:10,priceImpact:8,risk:'low',obs:'Essencial antes de propor qualquer alteração estrutural.'},
+    ]},
+    { id:'design', label:'Design', items: [
+      {id:'d1',label:'Estilo mínimo para desenvolvimento',desc:'Cores, tipografia e tom de voz básicos',timeImpact:15,priceImpact:12,risk:'medium',obs:'Usar quando não há identidade visual. Documentar como provisório.'},
+      {id:'d2',label:'Guia de estilo completo',desc:'Com base em identidade já existente',timeImpact:20,priceImpact:18,risk:'low',obs:'Cores, tipografia, iconografia. Subconjunto do design system.'},
+      {id:'d3',label:'Design system',desc:'Componentes, tokens e documentação',timeImpact:40,priceImpact:38,risk:'medium',obs:'Maior multiplicador de escopo. Criar do zero é muito diferente de adaptar.'},
+      {id:'d4',label:'Wireframes das telas principais',desc:'Onboarding, dashboard, fluxos críticos',timeImpact:18,priceImpact:15,risk:'low',obs:'Base para validação antes de alta fidelidade.'},
+      {id:'d5',label:'Protótipo de alta fidelidade',desc:'Simular interações do usuário',timeImpact:30,priceImpact:28,risk:'medium',obs:'Pode dobrar o tempo de uma fase. Definir escopo do protótipo.'},
+    ]},
+    { id:'tests', label:'Testes e validações', items: [
+      {id:'t1',label:'Teste de usabilidade',desc:'Sessões moderadas para refinar interações',timeImpact:15,priceImpact:14,risk:'medium',obs:'Definir número de rodadas e quem recruta participantes.'},
+    ]},
+    { id:'support', label:'Suporte ao desenvolvimento', items: [
+      {id:'s1',label:'Specs automáticos (Figma)',desc:'Handoff padrão via Figma Dev Mode',timeImpact:5,priceImpact:4,risk:'low',obs:'Mais eficiente. Exige que o dev tenha acesso ao Figma.'},
+      {id:'s2',label:'Documentação manual',desc:'Especificações detalhadas por escrito',timeImpact:15,priceImpact:13,risk:'low',obs:'Mais trabalhoso mas aumenta valor percebido.'},
+      {id:'s3',label:'Colaboração com time de dev',desc:'Acompanhamento durante implementação',timeImpact:25,priceImpact:22,risk:'medium',obs:'É consultoria, não design. Cobrar por hora ou limitar horas.'},
+      {id:'s4',label:'Revisão regular e iterações',desc:'Baseada em feedbacks do desenvolvimento',timeImpact:20,priceImpact:18,risk:'high',obs:'Definir número de ciclos. Ilimitado vira suporte gratuito.'},
+    ]},
+  ],
+  details: [
+    {id:'det1',label:'Produto novo ou legado',options:['Novo','Legado','Redesign'],timeImpact:[0,25,18],priceImpact:[0,22,15],risk:['low','high','medium'],obs:'Legado esconde restrições técnicas que aparecem no meio do projeto.'},
+    {id:'det2',label:'Tipo de plataforma',options:['Web','iOS','Android','Desktop','Web + Mobile','Multi-plataforma'],timeImpact:[0,0,0,0,50,70],priceImpact:[0,0,0,0,45,65],risk:['low','low','low','low','medium','high'],obs:'Cada plataforma adicional representa 40–80% a mais no escopo.'},
+    {id:'det3',label:'Integrações de sistema',options:['Nenhuma','APIs simples','ERP / CRM','Múltiplas APIs'],timeImpact:[0,10,25,38],priceImpact:[0,8,22,35],risk:['low','low','high','high'],obs:'Entender APIs antes de desenhar economiza redesigns.'},
+    {id:'det4',label:'Quantidade de idiomas',options:['1 idioma','2 idiomas','3 ou mais'],timeImpact:[0,20,40],priceImpact:[0,18,38],risk:['low','low','medium'],obs:'Layouts flexíveis para strings longas (alemão, japonês).'},
+    {id:'det5',label:'Modo escuro / variantes',options:['Não','Sim'],timeImpact:[0,20],priceImpact:[0,18],risk:['low','low'],obs:'Não é inverter cores — exige revisão de contraste, tokens e estados.'},
+    {id:'det6',label:'Acessibilidade (WCAG)',options:['Não considerada','WCAG AA','WCAG AAA'],timeImpact:[0,15,30],priceImpact:[0,14,28],risk:['low','medium','medium'],obs:'AA é obrigatório em produtos públicos. Ignorar gera retrabalho no dev.'},
+    {id:'det7',label:'Porte do cliente',options:['Startup','Scale-up','Empresa grande'],timeImpact:[0,0,0],priceImpact:[0,20,45],risk:['low','low','low'],obs:'O impacto no negócio justifica preços diferentes por porte.'},
+    {id:'det8',label:'Urgência do prazo',options:['Flexível','Normal (4–8 sem)','Rush (< 2 sem)'],timeImpact:[0,0,-40],priceImpact:[-5,0,35],risk:['low','low','high'],obs:'Rush sem ajuste de escopo compromete qualidade.'},
+    {id:'det9',label:'Nº de telas',options:['1–5 telas','6–20 telas','21–50 telas','50+ telas'],timeImpact:[0,30,70,130],priceImpact:[0,28,65,120],risk:['low','low','medium','high'],obs:'Base mais objetiva para precificação. Nunca feche sem número.'},
+    {id:'det10',label:'Autonomia criativa',options:['Liberdade total','Referências abertas','Pixel-perfect definido'],timeImpact:[0,0,25],priceImpact:[0,0,22],risk:['low','low','medium'],obs:'Pixel-perfect é mais trabalho, não menos. Cobrar por execução detalhada.'},
+    {id:'det11',label:'Maturidade em design',options:['Sem cultura de design','Em construção','Madura'],timeImpact:[28,12,0],priceImpact:[25,10,0],risk:['medium','low','low'],obs:'Sem cultura exige mais tempo de alinhamento e convencimento.'},
+  ]
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function calcImpacts(p) {
+  let tTime = 0, tPrice = 0;
+  DATA.phases.forEach(ph => ph.items.forEach(it => {
+    if (p.selectedPhases?.[it.id]) { tTime += it.timeImpact; tPrice += it.priceImpact; }
+  }));
+  DATA.details.forEach(d => {
+    const s = p.selectedDetails?.[d.id];
+    if (s !== undefined) { tTime += d.timeImpact[s]; tPrice += d.priceImpact[s]; }
+  });
+  return { tTime: Math.round(tTime), tPrice: Math.round(tPrice) };
+}
+
+function calcMoney(p) {
+  const { tPrice, tTime } = calcImpacts(p);
+  const base  = parseFloat(p.basePrice) || 0;
+  const hours = parseFloat(p.baseHours) || 0;
+  return {
+    base,
+    total:      Math.round(base * (1 + tPrice / 100)),
+    hoursTotal: Math.round(hours * (1 + tTime / 100)),
+    tPrice,
+  };
+}
+
+function fmt(v, cur = 'BRL') {
+  if (!v) return '—';
+  const locale = cur === 'BRL' ? 'pt-BR' : cur === 'EUR' ? 'de-DE' : 'en-US';
+  return new Intl.NumberFormat(locale, { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(v);
+}
+
+function riskOf(p) {
+  const risks = [];
+  DATA.phases.forEach(ph => ph.items.forEach(it => { if (p.selectedPhases?.[it.id]) risks.push(it.risk); }));
+  DATA.details.forEach(d => { const s = p.selectedDetails?.[d.id]; if (s !== undefined) risks.push(d.risk[s]); });
+  if (risks.includes('high'))   return 'danger';
+  if (risks.includes('medium')) return 'warning';
+  return 'success';
+}
+
+function riskTxt(r) { return r === 'danger' ? 'risco alto' : r === 'warning' ? 'risco médio' : 'risco baixo'; }
+
+function countSel(p) {
+  let n = 0;
+  DATA.phases.forEach(ph => ph.items.forEach(it => { if (p.selectedPhases?.[it.id]) n++; }));
+  DATA.details.forEach(d => { if (p.selectedDetails?.[d.id] !== undefined) n++; });
+  return n;
+}
+
+function getHighRisks(p) {
+  const out = [];
+  DATA.phases.forEach(ph => ph.items.forEach(it => { if (p.selectedPhases?.[it.id] && it.risk === 'high') out.push({ label: it.label, obs: it.obs }); }));
+  DATA.details.forEach(d => { const s = p.selectedDetails?.[d.id]; if (s !== undefined && d.risk[s] === 'high') out.push({ label: `${d.label}: ${d.options[s]}`, obs: d.obs }); });
+  return out;
+}
+
+function getMedRisks(p) {
+  const out = [];
+  DATA.phases.forEach(ph => ph.items.forEach(it => { if (p.selectedPhases?.[it.id] && it.risk === 'medium') out.push({ label: it.label, obs: it.obs }); }));
+  DATA.details.forEach(d => { const s = p.selectedDetails?.[d.id]; if (s !== undefined && d.risk[s] === 'medium') out.push({ label: `${d.label}: ${d.options[s]}`, obs: d.obs }); });
+  return out;
+}
+
+function newProj() {
+  return { name:'', client:'', baseHours:'', basePrice:'', currency:'BRL', objective:'', outscope:'', notes:'', selectedPhases:{}, selectedDetails:{} };
+}
+
+// ── Views ────────────────────────────────────────────────────────────────────
+function showView(v) {
+  view = v;
+  document.querySelectorAll('[data-view]').forEach(t => t.classList.toggle('active', t.dataset.view === v));
+  render();
+}
+
+function startWizard() {
+  editId = null;
+  curProj = newProj();
+  wizardStep = 1;
+  view = 'wizard';
+  document.querySelectorAll('[data-view]').forEach(t => t.classList.toggle('active', t.dataset.view === 'wizard'));
+  render();
+}
+
+function render() {
+  const el = document.getElementById('main-content');
+  if (view === 'dashboard') el.innerHTML = renderDash();
+  else if (view === 'wizard')   el.innerHTML = renderWizard();
+  else if (view === 'admin')    el.innerHTML = renderAdmin();
+  else if (view === 'proposal') el.innerHTML = renderProposal();
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+function renderDash() {
+  if (!projects.length) return `
+    <div class="empty">
+      <div class="empty-icon">📋</div>
+      <div class="empty-title">Nenhum projeto ainda</div>
+      <div class="empty-sub">Crie seu primeiro briefing e proposta de projeto.</div>
+      <button class="btn primary" onclick="startWizard()">+ Novo projeto</button>
+    </div>`;
+
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div style="font-size:17px;font-weight:600">${projects.length} projeto${projects.length > 1 ? 's' : ''}</div>
+      <button class="btn primary" onclick="startWizard()">+ Novo projeto</button>
+    </div>
+    ${projects.map(p => {
+      const r = riskOf(p); const m = calcMoney(p);
+      return `<div class="project-card" onclick="openProj('${p.id}')">
+        <div class="proj-icon">✦</div>
+        <div class="proj-meta">
+          <div class="proj-name">${p.name || 'Projeto sem nome'}</div>
+          <div class="proj-info">
+            ${p.client ? `<span>${p.client}</span><span>·</span>` : ''}
+            <span>${countSel(p)} itens</span>
+            ${m.base ? `<span>·</span><span>${fmt(m.total, p.currency)}</span>` : ''}
+            <span>·</span><span class="badge ${r}">${riskTxt(r)}</span>
+          </div>
+        </div>
+        <div class="proj-actions" onclick="event.stopPropagation()">
+          <button class="btn sm" onclick="editProj('${p.id}')">✏ Editar</button>
+          <button class="btn sm danger" onclick="confirmDelete('${p.id}')">🗑</button>
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+
+// ── Wizard ───────────────────────────────────────────────────────────────────
+function renderWizard() {
+  const steps = ['Identificação', 'Fases', 'Detalhes', 'Revisão'];
+  const pct   = ((wizardStep - 1) / 3 * 100).toFixed(0);
+  let body = '';
+
+  if (wizardStep === 1) body = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--purple);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">1</div>
+      <div><div style="font-size:17px;font-weight:600">Identificação do projeto</div><div style="font-size:13px;color:var(--text3)">Pode ser preenchido parcialmente e editado depois.</div></div>
+    </div>
+    <div class="grid-2" style="margin-bottom:12px">
+      <div><label class="lbl">Nome do projeto</label><input id="w-name" placeholder="Ex: App de fitness — fase 1" value="${curProj.name}"></div>
+      <div><label class="lbl">Cliente</label><input id="w-client" placeholder="Nome do cliente" value="${curProj.client}"></div>
+    </div>
+    <div style="margin-bottom:12px"><label class="lbl">Objetivo do projeto</label><textarea id="w-obj" placeholder="O que o projeto resolve? Qual o problema central?">${curProj.objective}</textarea></div>
+    <div style="margin-bottom:16px"><label class="lbl">Fora do escopo (opcional)</label><textarea id="w-out" placeholder="Liste o que NÃO está incluso">${curProj.outscope}</textarea></div>
+    <div class="divider"></div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px">Precificação base</div>
+    <div class="row" style="align-items:flex-end">
+      <div class="col"><label class="lbl">Horas base estimadas</label><input id="w-hours" type="number" min="0" placeholder="Ex: 80" value="${curProj.baseHours}"></div>
+      <div class="col"><label class="lbl">Preço base (sem multiplicadores)</label><input id="w-price" type="number" min="0" placeholder="Ex: 12000" value="${curProj.basePrice}"></div>
+      <div style="width:110px"><label class="lbl">Moeda</label>
+        <select id="w-cur">
+          <option value="BRL" ${curProj.currency==='BRL'?'selected':''}>BRL (R$)</option>
+          <option value="USD" ${curProj.currency==='USD'?'selected':''}>USD ($)</option>
+          <option value="EUR" ${curProj.currency==='EUR'?'selected':''}>EUR (€)</option>
+        </select>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin-top:6px">O valor final é calculado automaticamente aplicando os multiplicadores das variáveis selecionadas.</p>`;
+
+  if (wizardStep === 2) body = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--purple);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">2</div>
+      <div><div style="font-size:17px;font-weight:600">Fases do projeto</div><div style="font-size:13px;color:var(--text3)">Selecione os entregáveis que compõem este projeto.</div></div>
+    </div>
+    ${DATA.phases.map(ph => `
+      <div class="section-title">${ph.label}</div>
+      ${ph.items.map(it => `
+        <div class="card clickable ${curProj.selectedPhases?.[it.id] ? 'selected' : ''}" onclick="togglePhase('${it.id}')">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:20px;height:20px;border-radius:4px;border:1px solid var(--border2);background:${curProj.selectedPhases?.[it.id] ? 'var(--purple)' : 'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              ${curProj.selectedPhases?.[it.id] ? '<span style="color:#fff;font-size:12px">✓</span>' : ''}
+            </div>
+            <div style="flex:1">
+              <div style="font-size:14px;font-weight:500">${it.label}</div>
+              <div style="font-size:12px;color:var(--text3);margin-top:2px">${it.desc}</div>
+            </div>
+            <div style="display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+              <span class="badge ${it.risk==='high'?'danger':it.risk==='medium'?'warning':'success'}">${it.risk==='high'?'risco alto':it.risk==='medium'?'risco médio':'baixo'}</span>
+              <span class="badge neutral">+${it.timeImpact}% tempo</span>
+              <span class="badge neutral">+${it.priceImpact}% preço</span>
+            </div>
+          </div>
+        </div>`).join('')}`).join('')}`;
+
+  if (wizardStep === 3) body = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--purple);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">3</div>
+      <div><div style="font-size:17px;font-weight:600">Detalhes do projeto</div><div style="font-size:13px;color:var(--text3)">Selecione uma opção por categoria. Pode deixar em branco se não souber.</div></div>
+    </div>
+    ${DATA.details.map(d => `
+      <div style="margin-bottom:18px">
+        <label class="lbl">${d.label}</label>
+        <div class="chip-group">
+          ${d.options.map((opt, i) => `<button class="chip ${curProj.selectedDetails?.[d.id] === i ? 'selected' : ''}" onclick="selDetail('${d.id}',${i})">${opt}</button>`).join('')}
+          <button class="chip muted" onclick="clearDetail('${d.id}')">Não sei ainda</button>
+        </div>
+      </div>`).join('')}`;
+
+  if (wizardStep === 4) {
+    const { tTime, tPrice } = calcImpacts(curProj);
+    const m  = calcMoney(curProj);
+    const hi = getHighRisks(curProj);
+    const med= getMedRisks(curProj);
+    const phSel = DATA.phases.flatMap(ph => ph.items.filter(it => curProj.selectedPhases?.[it.id]));
+    body = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--purple);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">4</div>
+      <div><div style="font-size:17px;font-weight:600">Revisão e análise</div><div style="font-size:13px;color:var(--text3)">Confira antes de gerar a proposta.</div></div>
+    </div>
+    <div class="grid-4" style="margin-bottom:20px">
+      <div class="metric"><div class="metric-label">Entregáveis</div><div class="metric-value">${phSel.length}</div></div>
+      <div class="metric"><div class="metric-label">Impacto tempo</div><div class="metric-value">+${tTime}%</div>${curProj.baseHours ? `<div class="metric-sub">${Math.round(parseFloat(curProj.baseHours)*(1+tTime/100))}h estimadas</div>` : ''}</div>
+      <div class="metric"><div class="metric-label">Impacto preço</div><div class="metric-value">+${tPrice}%</div></div>
+      <div class="metric"><div class="metric-label">Valor estimado</div><div class="metric-value" style="font-size:${m.base?'16px':'22px'}">${m.base ? fmt(m.total, curProj.currency) : '—'}</div>${m.base ? `<div class="metric-sub">base: ${fmt(m.base, curProj.currency)}</div>` : ''}</div>
+    </div>
+    ${hi.length ? `<div class="risk-block high"><div class="risk-block-title">⚠ ${hi.length} ponto${hi.length>1?'s':''} de atenção alta</div>${hi.map(r=>`<div class="risk-item"><b>${r.label}</b> — ${r.obs}</div>`).join('')}</div>` : ''}
+    ${med.length ? `<div class="risk-block med"><div class="risk-block-title">⚡ ${med.length} ponto${med.length>1?'s':''} de atenção média</div>${med.map(r=>`<div class="risk-item"><b>${r.label}</b> — ${r.obs}</div>`).join('')}</div>` : ''}
+    <div style="margin-top:8px"><label class="lbl">Notas adicionais</label><textarea id="w-notes" placeholder="Observações que devem aparecer na proposta">${curProj.notes || ''}</textarea></div>`;
+  }
+
+  return `
+    <div class="progress"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <div class="step-pills">${['Identificação','Fases','Detalhes','Revisão'].map((s,i) => `<span class="step-pill ${wizardStep===i+1?'active':''}">${i+1}. ${s}</span>`).join('')}</div>
+    ${body}
+    <div class="nav-footer">
+      <button class="btn" onclick="${wizardStep===1?'showView(\'dashboard\')':'prevStep()'}">${wizardStep===1?'Cancelar':'← Voltar'}</button>
+      <button class="btn primary" onclick="${wizardStep===4?'saveProj()':'nextStep()'}">${wizardStep===4?'Salvar e gerar proposta ↗':'Próximo →'}</button>
+    </div>`;
+}
+
+// ── Proposal ─────────────────────────────────────────────────────────────────
+function renderProposal() {
+  const p = projects.find(x => x.id === editId); if (!p) return '';
+  const { tTime, tPrice } = calcImpacts(p);
+  const m   = calcMoney(p);
+  const hi  = getHighRisks(p);
+  const med = getMedRisks(p);
+  const byPhase  = DATA.phases.map(ph => ({ label: ph.label, items: ph.items.filter(it => p.selectedPhases?.[it.id]) })).filter(ph => ph.items.length);
+  const detSel   = DATA.details.filter(d => p.selectedDetails?.[d.id] !== undefined).map(d => ({ label: d.label, value: d.options[p.selectedDetails[d.id]] }));
+  const phRows   = DATA.phases.flatMap(ph => ph.items.filter(it => p.selectedPhases?.[it.id]).map(it => ({ label: it.label, pct: it.priceImpact })));
+  const detRows  = DATA.details.filter(d => p.selectedDetails?.[d.id] !== undefined && d.priceImpact[p.selectedDetails[d.id]] !== 0).map(d => ({ label: `${d.label}: ${d.options[p.selectedDetails[d.id]]}`, pct: d.priceImpact[p.selectedDetails[d.id]] }));
+
+  return `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+      <button class="btn" onclick="showView('dashboard')">← Projetos</button>
+      <div style="flex:1;font-size:17px;font-weight:600;min-width:120px">${p.name || 'Projeto sem nome'}</div>
+      <button class="btn sm" onclick="editProj('${p.id}')">✏ Editar</button>
+      <button class="btn sm primary" onclick="showExport('${p.id}')">↓ Exportar</button>
+    </div>
+
+    <div class="grid-4" style="margin-bottom:20px">
+      <div class="metric"><div class="metric-label">Entregáveis</div><div class="metric-value">${DATA.phases.flatMap(ph=>ph.items.filter(it=>p.selectedPhases?.[it.id])).length}</div></div>
+      <div class="metric"><div class="metric-label">Impacto tempo</div><div class="metric-value">+${tTime}%</div>${p.baseHours?`<div class="metric-sub">${Math.round(parseFloat(p.baseHours)*(1+tTime/100))}h estimadas</div>`:''}</div>
+      <div class="metric"><div class="metric-label">Impacto preço</div><div class="metric-value">+${tPrice}%</div></div>
+      <div class="metric"><div class="metric-label">Valor estimado</div><div class="metric-value" style="font-size:${m.base?'15px':'22px'}">${m.base ? fmt(m.total, p.currency) : '—'}</div>${m.base?`<div class="metric-sub">base: ${fmt(m.base,p.currency)}</div>`:''}</div>
+    </div>
+
+    ${m.base && (phRows.length || detRows.length) ? `
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px">Composição do preço</div>
+        <table class="price-table">
+          <thead><tr><th>Item</th><th>%</th><th style="text-align:right">Valor</th></tr></thead>
+          <tbody>
+            <tr class="base"><td>Preço base</td><td>—</td><td style="text-align:right">${fmt(m.base, p.currency)}</td></tr>
+            ${phRows.map(r=>`<tr><td>${r.label}</td><td>+${r.pct}%</td><td style="text-align:right">${fmt(m.base*r.pct/100,p.currency)}</td></tr>`).join('')}
+            ${detRows.map(r=>`<tr><td>${r.label}</td><td>${r.pct>0?'+':''}${r.pct}%</td><td style="text-align:right">${fmt(m.base*r.pct/100,p.currency)}</td></tr>`).join('')}
+            <tr class="total"><td><b>Total estimado</b></td><td>+${tPrice}%</td><td style="text-align:right"><b>${fmt(m.total,p.currency)}</b></td></tr>
+          </tbody>
+        </table>
+      </div>` : ''}
+
+    ${hi.length ? `<div class="risk-block high"><div class="risk-block-title">⚠ ${hi.length} ponto${hi.length>1?'s':''} de atenção alta</div>${hi.map(r=>`<div class="risk-item"><b>${r.label}</b> — ${r.obs}</div>`).join('')}</div>` : ''}
+    ${med.length ? `<div class="risk-block med"><div class="risk-block-title">⚡ ${med.length} ponto${med.length>1?'s':''} de atenção média</div>${med.map(r=>`<div class="risk-item"><b>${r.label}</b> — ${r.obs}</div>`).join('')}</div>` : ''}
+
+    <div class="divider"></div>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:16px;font-style:italic">Proposta para o cliente — linguagem amigável</p>
+
+    ${p.objective ? `<div class="proposal-section"><div class="proposal-heading">Sobre o projeto</div><p class="proposal-text">${p.objective}</p></div>` : ''}
+    ${p.client    ? `<div class="proposal-section"><div class="proposal-heading">Cliente</div><p class="proposal-text">${p.client}</p></div>` : ''}
+
+    ${byPhase.length ? `<div class="proposal-section"><div class="proposal-heading">O que está incluso nesta proposta</div>
+      ${byPhase.map(ph=>`<div style="margin-bottom:12px"><div style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:6px">${ph.label}</div>
+      <ul class="proposal-list">${ph.items.map(it=>`<li>${it.label} — <span style="color:var(--text3)">${it.desc}</span></li>`).join('')}</ul></div>`).join('')}
+    </div>` : ''}
+
+    ${detSel.length ? `<div class="proposal-section"><div class="proposal-heading">Escopo técnico e contexto</div>
+      <div class="tag-list">${detSel.map(d=>`<span class="tag"><b>${d.label}:</b> ${d.value}</span>`).join('')}</div>
+    </div>` : ''}
+
+    ${p.outscope ? `<div class="proposal-section"><div class="proposal-heading">Fora do escopo desta proposta</div><p class="proposal-text">${p.outscope}</p></div>` : ''}
+    ${p.notes    ? `<div class="proposal-section"><div class="proposal-heading">Observações</div><p class="proposal-text">${p.notes}</p></div>` : ''}
+
+    <p style="font-size:11px;color:var(--text3);border-top:1px solid var(--border);padding-top:12px;margin-top:16px">Gerado com Briefing Studio.</p>`;
+}
+
+// ── Admin ────────────────────────────────────────────────────────────────────
+function renderAdmin() {
+  return `
+    <div style="font-size:17px;font-weight:600;margin-bottom:4px">Configurações</div>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:24px">Edite pesos e observações. Alterações valem para novos projetos.</p>
+
+    ${DATA.phases.map(ph => `
+      <div class="section-title">${ph.label}</div>
+      <div class="card">
+        <div style="display:grid;grid-template-columns:1fr 70px 70px 106px;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--text3)">Entregável</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);text-align:center">% tempo</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);text-align:center">% preço</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);text-align:center">Risco</div>
+        </div>
+        ${ph.items.map(it => `
+          <div class="admin-item">
+            <div class="admin-label">${it.label}</div>
+            <div class="admin-inputs">
+              <input type="number" value="${it.timeImpact}"  onchange="updPhase('${it.id}','timeImpact',this.value)">
+              <input type="number" value="${it.priceImpact}" onchange="updPhase('${it.id}','priceImpact',this.value)">
+              <select onchange="updPhase('${it.id}','risk',this.value)">
+                <option value="low"    ${it.risk==='low'?'selected':''}>baixo</option>
+                <option value="medium" ${it.risk==='medium'?'selected':''}>médio</option>
+                <option value="high"   ${it.risk==='high'?'selected':''}>alto</option>
+              </select>
+            </div>
+          </div>
+          <div style="padding:4px 0 10px">
+            <input type="text" value="${it.obs}" onchange="updPhase('${it.id}','obs',this.value)" style="font-size:12px;color:var(--text3)">
+          </div>`).join('')}
+      </div>`).join('')}
+
+    <div class="section-title" style="margin-top:24px">Detalhes do projeto</div>
+    ${DATA.details.map(d => `
+      <div class="card" style="margin-bottom:10px">
+        <div style="font-size:14px;font-weight:600;margin-bottom:10px">${d.label}</div>
+        ${d.options.map((opt, i) => `
+          <div class="admin-item">
+            <div class="admin-label" style="font-size:13px">${opt}</div>
+            <div class="admin-inputs">
+              <span style="font-size:11px;color:var(--text3)">tempo</span>
+              <input type="number" value="${d.timeImpact[i]}"  onchange="updDet('${d.id}','timeImpact',${i},this.value)">
+              <span style="font-size:11px;color:var(--text3)">preço</span>
+              <input type="number" value="${d.priceImpact[i]}" onchange="updDet('${d.id}','priceImpact',${i},this.value)">
+              <select onchange="updDet('${d.id}','risk',${i},this.value)">
+                <option value="low"    ${d.risk[i]==='low'?'selected':''}>baixo</option>
+                <option value="medium" ${d.risk[i]==='medium'?'selected':''}>médio</option>
+                <option value="high"   ${d.risk[i]==='high'?'selected':''}>alto</option>
+              </select>
+            </div>
+          </div>`).join('')}
+        <div style="padding:8px 0 0">
+          <input type="text" value="${d.obs}" onchange="updDetObs('${d.id}',this.value)" style="font-size:12px;color:var(--text3)">
+        </div>
+      </div>`).join('')}`;
+}
+
+// ── Export ───────────────────────────────────────────────────────────────────
+function showExport(id) {
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-bg" onclick="closeModal()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div class="modal-title" style="margin:0">Exportar proposta</div>
+          <button class="btn ghost icon" onclick="closeModal()">✕</button>
+        </div>
+        <div class="export-opt" onclick="exportTxt('${id}')">
+          <div class="export-icon" style="background:var(--bg2);font-size:20px">📄</div>
+          <div><div class="export-name">Texto formatado (.txt)</div><div class="export-desc">Para colar em email, Notion ou Word.</div></div>
+        </div>
+        <div class="export-opt" onclick="exportPdf('${id}')">
+          <div class="export-icon" style="background:var(--blue-light);font-size:20px">🖨</div>
+          <div><div class="export-name">PDF via impressão</div><div class="export-desc">Abre a proposta formatada. Use Ctrl+P → Salvar como PDF.</div></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
+
+function exportTxt(id) {
+  const p = projects.find(x => x.id === id); if (!p) return;
+  const { tTime, tPrice } = calcImpacts(p);
+  const m = calcMoney(p);
+  const byPhase = DATA.phases.map(ph => ({ label: ph.label, items: ph.items.filter(it => p.selectedPhases?.[it.id]) })).filter(ph => ph.items.length);
+  const detSel  = DATA.details.filter(d => p.selectedDetails?.[d.id] !== undefined).map(d => ({ label: d.label, value: d.options[p.selectedDetails[d.id]] }));
+  const hi = getHighRisks(p), med = getMedRisks(p);
+
+  let txt = `PROPOSTA DE PROJETO — ${(p.name || 'Projeto').toUpperCase()}\n${'─'.repeat(60)}\n\n`;
+  if (p.client) txt += `Cliente: ${p.client}\n\n`;
+  if (p.objective) txt += `Objetivo\n${p.objective}\n\n`;
+  txt += `Estimativa\n`;
+  txt += `Impacto no tempo: +${tTime}%${p.baseHours ? ` (${Math.round(parseFloat(p.baseHours)*(1+tTime/100))}h estimadas)` : ''}\n`;
+  txt += `Impacto no preço: +${tPrice}%${m.base ? ` — ${fmt(m.total, p.currency)} (base: ${fmt(m.base, p.currency)})` : ''}\n\n`;
+  if (byPhase.length) {
+    txt += `O que está incluso\n`;
+    byPhase.forEach(ph => { txt += `\n${ph.label}\n`; ph.items.forEach(it => txt += `  → ${it.label}: ${it.desc}\n`); });
+    txt += '\n';
+  }
+  if (detSel.length) { txt += `Escopo técnico\n`; detSel.forEach(d => txt += `  • ${d.label}: ${d.value}\n`); txt += '\n'; }
+  if (p.outscope) txt += `Fora do escopo\n${p.outscope}\n\n`;
+  if (p.notes)    txt += `Observações\n${p.notes}\n\n`;
+  if (hi.length || med.length) {
+    txt += `Pontos de atenção (interno)\n`;
+    hi.forEach(r  => txt += `  [ALTO]  ${r.label}: ${r.obs}\n`);
+    med.forEach(r => txt += `  [MÉDIO] ${r.label}: ${r.obs}\n`);
+  }
+  txt += `\n${'─'.repeat(60)}\nGerado com Briefing Studio\n`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
+  a.download = `proposta-${(p.name||'projeto').toLowerCase().replace(/\s+/g,'-')}.txt`;
+  a.click();
+  closeModal();
+}
+
+function exportPdf(id) {
+  const p = projects.find(x => x.id === id); if (!p) return;
+  const { tTime, tPrice } = calcImpacts(p);
+  const m      = calcMoney(p);
+  const byPhase= DATA.phases.map(ph=>({label:ph.label,items:ph.items.filter(it=>p.selectedPhases?.[it.id])})).filter(ph=>ph.items.length);
+  const detSel = DATA.details.filter(d=>p.selectedDetails?.[d.id]!==undefined).map(d=>({label:d.label,value:d.options[p.selectedDetails[d.id]]}));
+  const phRows = DATA.phases.flatMap(ph=>ph.items.filter(it=>p.selectedPhases?.[it.id]).map(it=>({label:it.label,pct:it.priceImpact})));
+  const detRows= DATA.details.filter(d=>p.selectedDetails?.[d.id]!==undefined&&d.priceImpact[p.selectedDetails[d.id]]!==0).map(d=>({label:`${d.label}: ${d.options[p.selectedDetails[d.id]]}`,pct:d.priceImpact[p.selectedDetails[d.id]]}));
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Proposta — ${p.name||'Projeto'}</title>
+  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1a1a2e;padding:48px;max-width:780px;margin:0 auto;font-size:14px;line-height:1.7}
+  h1{font-size:26px;font-weight:700;margin-bottom:4px}
+  h2{font-size:15px;font-weight:700;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid #5B4FCF;color:#5B4FCF}
+  h3{font-size:13px;font-weight:700;color:#6b7280;margin:14px 0 5px}
+  p{color:#4a5568;margin-bottom:8px}
+  ul{list-style:none;padding:0}ul li{padding:4px 0;color:#4a5568}ul li::before{content:"→ ";color:#9ca3af}
+  .meta{display:flex;gap:24px;margin:14px 0 28px;padding:16px;background:#f7f8fa;border-radius:8px;flex-wrap:wrap}
+  .meta-item label{font-size:11px;color:#9ca3af;display:block}
+  .meta-item span{font-size:16px;font-weight:700;color:#1a1a2e}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  td,th{padding:8px 12px;text-align:left;border-bottom:1px solid #f3f4f6}
+  th{background:#f7f8fa;font-weight:700;font-size:11px;color:#6b7280;text-transform:uppercase}
+  .total td{font-weight:700;font-size:15px;background:#EAE8FA;color:#5B4FCF}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .tag{padding:3px 10px;border-radius:20px;font-size:12px;background:#f3f4f6;color:#4a5568}
+  .footer{margin-top:48px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af}
+  @media print{body{padding:24px}@page{margin:20mm}}</style></head><body>
+  <h1>${p.name||'Proposta de projeto'}</h1>
+  ${p.client?`<p style="color:#6b7280;font-size:15px">${p.client}</p>`:''}
+  <div class="meta">
+    <div class="meta-item"><label>Impacto no tempo</label><span>+${tTime}%${p.baseHours?' ('+Math.round(parseFloat(p.baseHours)*(1+tTime/100))+'h)':''}</span></div>
+    <div class="meta-item"><label>Impacto no preço</label><span>+${tPrice}%</span></div>
+    ${m.base?`<div class="meta-item"><label>Valor estimado</label><span>${fmt(m.total,p.currency)}</span></div>`:''}
+  </div>
+  ${p.objective?`<h2>Sobre o projeto</h2><p>${p.objective}</p>`:''}
+  ${byPhase.length?`<h2>O que está incluso</h2>${byPhase.map(ph=>`<h3>${ph.label}</h3><ul>${ph.items.map(it=>`<li>${it.label} — ${it.desc}</li>`).join('')}</ul>`).join('')}`:''}
+  ${detSel.length?`<h2>Escopo técnico</h2><div class="tags">${detSel.map(d=>`<span class="tag"><b>${d.label}:</b> ${d.value}</span>`).join('')}</div>`:''}
+  ${m.base&&(phRows.length||detRows.length)?`<h2>Composição do preço</h2>
+    <table><thead><tr><th>Item</th><th>%</th><th style="text-align:right">Valor</th></tr></thead><tbody>
+    <tr><td>Preço base</td><td>—</td><td style="text-align:right">${fmt(m.base,p.currency)}</td></tr>
+    ${phRows.map(r=>`<tr><td>${r.label}</td><td>+${r.pct}%</td><td style="text-align:right">${fmt(m.base*r.pct/100,p.currency)}</td></tr>`).join('')}
+    ${detRows.map(r=>`<tr><td>${r.label}</td><td>${r.pct>0?'+':''}${r.pct}%</td><td style="text-align:right">${fmt(m.base*r.pct/100,p.currency)}</td></tr>`).join('')}
+    <tr class="total"><td>Total estimado</td><td>+${tPrice}%</td><td style="text-align:right">${fmt(m.total,p.currency)}</td></tr>
+    </tbody></table>`:''}
+  ${p.outscope?`<h2>Fora do escopo</h2><p>${p.outscope}</p>`:''}
+  ${p.notes?`<h2>Observações</h2><p>${p.notes}</p>`:''}
+  <div class="footer">Gerado com Briefing Studio.</div>
+  <script>window.onload=()=>window.print()<\/script></body></html>`;
+
+  window.open(URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'})),'_blank');
+  closeModal();
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function togglePhase(id) { curProj.selectedPhases = curProj.selectedPhases || {}; curProj.selectedPhases[id] = !curProj.selectedPhases[id]; render(); }
+function selDetail(id, i)  { curProj.selectedDetails = curProj.selectedDetails || {}; curProj.selectedDetails[id] = (curProj.selectedDetails[id] === i) ? undefined : i; render(); }
+function clearDetail(id)   { if (curProj.selectedDetails) delete curProj.selectedDetails[id]; render(); }
+
+function nextStep() {
+  if (wizardStep === 1) {
+    curProj.name      = document.getElementById('w-name')?.value  || '';
+    curProj.client    = document.getElementById('w-client')?.value || '';
+    curProj.objective = document.getElementById('w-obj')?.value   || '';
+    curProj.outscope  = document.getElementById('w-out')?.value   || '';
+    curProj.baseHours = document.getElementById('w-hours')?.value || '';
+    curProj.basePrice = document.getElementById('w-price')?.value || '';
+    curProj.currency  = document.getElementById('w-cur')?.value   || 'BRL';
+  }
+  wizardStep = Math.min(4, wizardStep + 1);
+  render();
+}
+
+function prevStep() { wizardStep = Math.max(1, wizardStep - 1); render(); }
+
+async function saveProj() {
+  curProj.notes = document.getElementById('w-notes')?.value || '';
+  const btn = document.querySelector('.nav-footer .btn.primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
+  try {
+    const savedId = await saveProject(curProj);
+    editId = savedId;
+    curProj.id = savedId;
+    view = 'proposal';
+    render();
+  } catch (e) {
+    alert('Erro ao salvar: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar e gerar proposta ↗'; }
+  }
+}
+
+function openProj(id) { editId = id; view = 'proposal'; render(); }
+
+function editProj(id) {
+  editId  = id;
+  curProj = JSON.parse(JSON.stringify(projects.find(x => x.id === id) || newProj()));
+  wizardStep = 1;
+  view = 'wizard';
+  document.querySelectorAll('[data-view]').forEach(t => t.classList.remove('active'));
+  render();
+}
+
+async function confirmDelete(id) {
+  const p = projects.find(x => x.id === id);
+  if (confirm(`Remover "${p?.name || 'este projeto'}"? Esta ação não pode ser desfeita.`)) {
+    await deleteProject(id);
+  }
+}
+
+function updPhase(id, field, val) { DATA.phases.forEach(ph => ph.items.forEach(it => { if (it.id === id) it[field] = field === 'risk' ? val : Number(val); })); }
+function updDet(id, field, idx, val) { const d = DATA.details.find(x => x.id === id); if (d) d[field][idx] = field === 'risk' ? val : Number(val); }
+function updDetObs(id, val) { const d = DATA.details.find(x => x.id === id); if (d) d.obs = val; }
+</script>
+</body>
+</html>
