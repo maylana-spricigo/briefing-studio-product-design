@@ -394,14 +394,14 @@ function calcImpacts(p) {
 
 function calcMoney(p) {
   const { tPrice, tTime } = calcImpacts(p);
-  const base  = parseFloat(p.basePrice) || 0;
   const hours = parseFloat(p.baseHours) || 0;
-  return {
-    base,
-    total:      Math.round(base * (1 + tPrice / 100)),
-    hoursTotal: Math.round(hours * (1 + tTime / 100)),
-    tPrice,
-  };
+  const hoursTotal = Math.round(hours * (1 + tTime / 100));
+  if (p.pricingMode === 'hourly') {
+    const rate = parseFloat(p.hourlyRate) || 0;
+    return { base: Math.round(hours * rate), total: Math.round(hoursTotal * rate), hoursTotal, tPrice, rate };
+  }
+  const base = parseFloat(p.basePrice) || 0;
+  return { base, total: Math.round(base * (1 + tPrice / 100)), hoursTotal, tPrice, rate: 0 };
 }
 
 function fmt(v, cur = 'BRL') {
@@ -443,7 +443,7 @@ function getMedRisks(p) {
 }
 
 function newProj() {
-  return { name:'', client:'', baseHours:'', basePrice:'', currency:'BRL', objective:'', outscope:'', notes:'', selectedPhases:{}, selectedDetails:{} };
+  return { name:'', client:'', baseHours:'', basePrice:'', hourlyRate:'', pricingMode:'fixed', currency:'BRL', objective:'', outscope:'', notes:'', selectedPhases:{}, selectedDetails:{} };
 }
 
 // ── Views ────────────────────────────────────────────────────────────────────
@@ -525,9 +525,18 @@ function renderWizard() {
     <div style="margin-bottom:16px"><label class="lbl">Fora do escopo (opcional)</label><textarea id="w-out" placeholder="Liste o que NÃO está incluso">${curProj.outscope}</textarea></div>
     <div class="divider"></div>
     <div style="font-size:14px;font-weight:600;margin-bottom:12px">Precificação base</div>
+    <div style="margin-bottom:12px">
+      <label class="lbl">Modo de precificação</label>
+      <div class="chip-group">
+        <button class="chip ${curProj.pricingMode !== 'hourly' ? 'selected' : ''}" onclick="setPricingMode('fixed')">Preço fixo</button>
+        <button class="chip ${curProj.pricingMode === 'hourly' ? 'selected' : ''}" onclick="setPricingMode('hourly')">Por hora</button>
+      </div>
+    </div>
     <div class="row" style="align-items:flex-end">
       <div class="col"><label class="lbl">Horas base estimadas</label><input id="w-hours" type="number" min="0" placeholder="Ex: 80" value="${curProj.baseHours}"></div>
-      <div class="col"><label class="lbl">Preço base (sem multiplicadores)</label><input id="w-price" type="number" min="0" placeholder="Ex: 12000" value="${curProj.basePrice}"></div>
+      ${curProj.pricingMode === 'hourly'
+        ? `<div class="col"><label class="lbl">Valor hora</label><input id="w-rate" type="number" min="0" placeholder="Ex: 150" value="${curProj.hourlyRate || ''}"></div>`
+        : `<div class="col"><label class="lbl">Preço base (sem multiplicadores)</label><input id="w-price" type="number" min="0" placeholder="Ex: 12000" value="${curProj.basePrice}"></div>`}
       <div style="width:110px"><label class="lbl">Moeda</label>
         <select id="w-cur">
           <option value="BRL" ${curProj.currency==='BRL'?'selected':''}>BRL (R$)</option>
@@ -536,7 +545,7 @@ function renderWizard() {
         </select>
       </div>
     </div>
-    <p style="font-size:12px;color:var(--text3);margin-top:6px">O valor final é calculado automaticamente aplicando os multiplicadores das variáveis selecionadas.</p>`;
+    <p style="font-size:12px;color:var(--text3);margin-top:6px">${curProj.pricingMode === 'hourly' ? 'O valor final é calculado multiplicando as horas estimadas (com multiplicadores) pelo valor hora.' : 'O valor final é calculado automaticamente aplicando os multiplicadores das variáveis selecionadas.'}</p>`;
 
   if (wizardStep === 2) body = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
@@ -591,7 +600,9 @@ function renderWizard() {
     <div class="grid-4" style="margin-bottom:20px">
       <div class="metric"><div class="metric-label">Entregáveis</div><div class="metric-value">${phSel.length}</div></div>
       <div class="metric"><div class="metric-label">Impacto tempo</div><div class="metric-value">+${tTime}%</div>${curProj.baseHours ? `<div class="metric-sub">${Math.round(parseFloat(curProj.baseHours)*(1+tTime/100))}h estimadas</div>` : ''}</div>
-      <div class="metric"><div class="metric-label">Impacto preço</div><div class="metric-value">+${tPrice}%</div></div>
+      ${curProj.pricingMode === 'hourly'
+        ? `<div class="metric"><div class="metric-label">Valor hora</div><div class="metric-value" style="font-size:16px">${m.rate ? fmt(m.rate, curProj.currency) + '/h' : '—'}</div></div>`
+        : `<div class="metric"><div class="metric-label">Impacto preço</div><div class="metric-value">+${tPrice}%</div></div>`}
       <div class="metric"><div class="metric-label">Valor estimado</div><div class="metric-value" style="font-size:${m.base?'16px':'22px'}">${m.base ? fmt(m.total, curProj.currency) : '—'}</div>${m.base ? `<div class="metric-sub">base: ${fmt(m.base, curProj.currency)}</div>` : ''}</div>
     </div>
     ${hi.length ? `<div class="risk-block high"><div class="risk-block-title">⚠ ${hi.length} ponto${hi.length>1?'s':''} de atenção alta</div>${hi.map(r=>`<div class="risk-item"><b>${r.label}</b> — ${r.obs}</div>`).join('')}</div>` : ''}
@@ -618,8 +629,8 @@ function renderProposal() {
   const med = getMedRisks(p);
   const byPhase  = DATA.phases.map(ph => ({ label: ph.label, items: ph.items.filter(it => p.selectedPhases?.[it.id]) })).filter(ph => ph.items.length);
   const detSel   = DATA.details.filter(d => p.selectedDetails?.[d.id] !== undefined).map(d => ({ label: d.label, value: d.options[p.selectedDetails[d.id]] }));
-  const phRows   = DATA.phases.flatMap(ph => ph.items.filter(it => p.selectedPhases?.[it.id]).map(it => ({ label: it.label, pct: it.priceImpact })));
-  const detRows  = DATA.details.filter(d => p.selectedDetails?.[d.id] !== undefined && d.priceImpact[p.selectedDetails[d.id]] !== 0).map(d => ({ label: `${d.label}: ${d.options[p.selectedDetails[d.id]]}`, pct: d.priceImpact[p.selectedDetails[d.id]] }));
+  const phRows   = DATA.phases.flatMap(ph => ph.items.filter(it => p.selectedPhases?.[it.id]).map(it => ({ label: it.label, pct: p.pricingMode === 'hourly' ? it.timeImpact : it.priceImpact })));
+  const detRows  = DATA.details.filter(d => p.selectedDetails?.[d.id] !== undefined && (p.pricingMode === 'hourly' ? d.timeImpact[p.selectedDetails[d.id]] : d.priceImpact[p.selectedDetails[d.id]]) !== 0).map(d => ({ label: `${d.label}: ${d.options[p.selectedDetails[d.id]]}`, pct: p.pricingMode === 'hourly' ? d.timeImpact[p.selectedDetails[d.id]] : d.priceImpact[p.selectedDetails[d.id]] }));
 
   return `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
@@ -632,7 +643,9 @@ function renderProposal() {
     <div class="grid-4" style="margin-bottom:20px">
       <div class="metric"><div class="metric-label">Entregáveis</div><div class="metric-value">${DATA.phases.flatMap(ph=>ph.items.filter(it=>p.selectedPhases?.[it.id])).length}</div></div>
       <div class="metric"><div class="metric-label">Impacto tempo</div><div class="metric-value">+${tTime}%</div>${p.baseHours?`<div class="metric-sub">${Math.round(parseFloat(p.baseHours)*(1+tTime/100))}h estimadas</div>`:''}</div>
-      <div class="metric"><div class="metric-label">Impacto preço</div><div class="metric-value">+${tPrice}%</div></div>
+      ${p.pricingMode === 'hourly'
+        ? `<div class="metric"><div class="metric-label">Valor hora</div><div class="metric-value" style="font-size:16px">${m.rate ? fmt(m.rate, p.currency) + '/h' : '—'}</div></div>`
+        : `<div class="metric"><div class="metric-label">Impacto preço</div><div class="metric-value">+${tPrice}%</div></div>`}
       <div class="metric"><div class="metric-label">Valor estimado</div><div class="metric-value" style="font-size:${m.base?'15px':'22px'}">${m.base ? fmt(m.total, p.currency) : '—'}</div>${m.base?`<div class="metric-sub">base: ${fmt(m.base,p.currency)}</div>`:''}</div>
     </div>
 
@@ -645,7 +658,7 @@ function renderProposal() {
             <tr class="base"><td>Preço base</td><td>—</td><td style="text-align:right">${fmt(m.base, p.currency)}</td></tr>
             ${phRows.map(r=>`<tr><td>${r.label}</td><td>+${r.pct}%</td><td style="text-align:right">${fmt(m.base*r.pct/100,p.currency)}</td></tr>`).join('')}
             ${detRows.map(r=>`<tr><td>${r.label}</td><td>${r.pct>0?'+':''}${r.pct}%</td><td style="text-align:right">${fmt(m.base*r.pct/100,p.currency)}</td></tr>`).join('')}
-            <tr class="total"><td><b>Total estimado</b></td><td>+${tPrice}%</td><td style="text-align:right"><b>${fmt(m.total,p.currency)}</b></td></tr>
+            <tr class="total"><td><b>Total estimado</b></td><td>+${p.pricingMode === 'hourly' ? tTime : tPrice}%</td><td style="text-align:right"><b>${fmt(m.total,p.currency)}</b></td></tr>
           </tbody>
         </table>
       </div>` : ''}
@@ -768,7 +781,11 @@ function exportTxt(id) {
   if (p.objective) txt += `Objetivo\n${p.objective}\n\n`;
   txt += `Estimativa\n`;
   txt += `Impacto no tempo: +${tTime}%${p.baseHours ? ` (${Math.round(parseFloat(p.baseHours)*(1+tTime/100))}h estimadas)` : ''}\n`;
-  txt += `Impacto no preço: +${tPrice}%${m.base ? ` — ${fmt(m.total, p.currency)} (base: ${fmt(m.base, p.currency)})` : ''}\n\n`;
+  if (p.pricingMode === 'hourly') {
+    txt += `Valor hora: ${m.rate ? fmt(m.rate, p.currency) + '/h' : '—'}${m.base ? ` — Total: ${fmt(m.total, p.currency)}` : ''}\n\n`;
+  } else {
+    txt += `Impacto no preço: +${tPrice}%${m.base ? ` — ${fmt(m.total, p.currency)} (base: ${fmt(m.base, p.currency)})` : ''}\n\n`;
+  }
   if (byPhase.length) {
     txt += `O que está incluso\n`;
     byPhase.forEach(ph => { txt += `\n${ph.label}\n`; ph.items.forEach(it => txt += `  → ${it.label}: ${it.desc}\n`); });
@@ -796,8 +813,8 @@ function exportPdf(id) {
   const m      = calcMoney(p);
   const byPhase= DATA.phases.map(ph=>({label:ph.label,items:ph.items.filter(it=>p.selectedPhases?.[it.id])})).filter(ph=>ph.items.length);
   const detSel = DATA.details.filter(d=>p.selectedDetails?.[d.id]!==undefined).map(d=>({label:d.label,value:d.options[p.selectedDetails[d.id]]}));
-  const phRows = DATA.phases.flatMap(ph=>ph.items.filter(it=>p.selectedPhases?.[it.id]).map(it=>({label:it.label,pct:it.priceImpact})));
-  const detRows= DATA.details.filter(d=>p.selectedDetails?.[d.id]!==undefined&&d.priceImpact[p.selectedDetails[d.id]]!==0).map(d=>({label:`${d.label}: ${d.options[p.selectedDetails[d.id]]}`,pct:d.priceImpact[p.selectedDetails[d.id]]}));
+  const phRows = DATA.phases.flatMap(ph=>ph.items.filter(it=>p.selectedPhases?.[it.id]).map(it=>({label:it.label,pct:p.pricingMode==='hourly'?it.timeImpact:it.priceImpact})));
+  const detRows= DATA.details.filter(d=>p.selectedDetails?.[d.id]!==undefined&&(p.pricingMode==='hourly'?d.timeImpact[p.selectedDetails[d.id]]:d.priceImpact[p.selectedDetails[d.id]])!==0).map(d=>({label:`${d.label}: ${d.options[p.selectedDetails[d.id]]}`,pct:p.pricingMode==='hourly'?d.timeImpact[p.selectedDetails[d.id]]:d.priceImpact[p.selectedDetails[d.id]]}));
 
   const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Proposta — ${p.name||'Projeto'}</title>
   <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1a1a2e;padding:48px;max-width:780px;margin:0 auto;font-size:14px;line-height:1.7}
@@ -821,7 +838,9 @@ function exportPdf(id) {
   ${p.client?`<p style="color:#6b7280;font-size:15px">${p.client}</p>`:''}
   <div class="meta">
     <div class="meta-item"><label>Impacto no tempo</label><span>+${tTime}%${p.baseHours?' ('+Math.round(parseFloat(p.baseHours)*(1+tTime/100))+'h)':''}</span></div>
-    <div class="meta-item"><label>Impacto no preço</label><span>+${tPrice}%</span></div>
+    ${p.pricingMode==='hourly'
+      ?`<div class="meta-item"><label>Valor hora</label><span>${m.rate?fmt(m.rate,p.currency)+'/h':'—'}</span></div>`
+      :`<div class="meta-item"><label>Impacto no preço</label><span>+${tPrice}%</span></div>`}
     ${m.base?`<div class="meta-item"><label>Valor estimado</label><span>${fmt(m.total,p.currency)}</span></div>`:''}
   </div>
   ${p.objective?`<h2>Sobre o projeto</h2><p>${p.objective}</p>`:''}
@@ -832,7 +851,7 @@ function exportPdf(id) {
     <tr><td>Preço base</td><td>—</td><td style="text-align:right">${fmt(m.base,p.currency)}</td></tr>
     ${phRows.map(r=>`<tr><td>${r.label}</td><td>+${r.pct}%</td><td style="text-align:right">${fmt(m.base*r.pct/100,p.currency)}</td></tr>`).join('')}
     ${detRows.map(r=>`<tr><td>${r.label}</td><td>${r.pct>0?'+':''}${r.pct}%</td><td style="text-align:right">${fmt(m.base*r.pct/100,p.currency)}</td></tr>`).join('')}
-    <tr class="total"><td>Total estimado</td><td>+${tPrice}%</td><td style="text-align:right">${fmt(m.total,p.currency)}</td></tr>
+    <tr class="total"><td>Total estimado</td><td>+${p.pricingMode==='hourly'?tTime:tPrice}%</td><td style="text-align:right">${fmt(m.total,p.currency)}</td></tr>
     </tbody></table>`:''}
   ${p.outscope?`<h2>Fora do escopo</h2><p>${p.outscope}</p>`:''}
   ${p.notes?`<h2>Observações</h2><p>${p.notes}</p>`:''}
@@ -854,9 +873,10 @@ function nextStep() {
     curProj.client    = document.getElementById('w-client')?.value || '';
     curProj.objective = document.getElementById('w-obj')?.value   || '';
     curProj.outscope  = document.getElementById('w-out')?.value   || '';
-    curProj.baseHours = document.getElementById('w-hours')?.value || '';
-    curProj.basePrice = document.getElementById('w-price')?.value || '';
-    curProj.currency  = document.getElementById('w-cur')?.value   || 'BRL';
+    curProj.baseHours  = document.getElementById('w-hours')?.value || '';
+    curProj.basePrice  = document.getElementById('w-price')?.value || curProj.basePrice || '';
+    curProj.hourlyRate = document.getElementById('w-rate')?.value  || curProj.hourlyRate || '';
+    curProj.currency   = document.getElementById('w-cur')?.value   || 'BRL';
   }
   wizardStep = Math.min(4, wizardStep + 1);
   render();
@@ -896,6 +916,19 @@ async function confirmDelete(id) {
   if (confirm(`Remover "${p?.name || 'este projeto'}"? Esta ação não pode ser desfeita.`)) {
     await deleteProject(id);
   }
+}
+
+function setPricingMode(mode) {
+  curProj.name       = document.getElementById('w-name')?.value   || curProj.name;
+  curProj.client     = document.getElementById('w-client')?.value  || curProj.client;
+  curProj.objective  = document.getElementById('w-obj')?.value    || curProj.objective;
+  curProj.outscope   = document.getElementById('w-out')?.value    || curProj.outscope;
+  curProj.baseHours  = document.getElementById('w-hours')?.value  || curProj.baseHours;
+  curProj.basePrice  = document.getElementById('w-price')?.value  || curProj.basePrice;
+  curProj.hourlyRate = document.getElementById('w-rate')?.value   || curProj.hourlyRate;
+  curProj.currency   = document.getElementById('w-cur')?.value    || curProj.currency;
+  curProj.pricingMode = mode;
+  render();
 }
 
 function updPhase(id, field, val) { DATA.phases.forEach(ph => ph.items.forEach(it => { if (it.id === id) it[field] = field === 'risk' ? val : Number(val); })); }
